@@ -162,7 +162,7 @@ C=D_{M*M}A_{M*N}D_{N*N}^T;
 $$
 	故而在代码中，通过自定义的DCT_operator函数可以方便地生成N维DCT算子，随后进行如上计算即可。
 
-	代码如下：
+代码如下：
 
 ```matlab
 function B = my_dct2(A)
@@ -372,7 +372,7 @@ $$
 
 ```
 
-打表方法如下：
+	打表方法如下：
 
 ```
 if(r~=8 | c~= 8)
@@ -402,7 +402,7 @@ end
 2. **利用for循环进行分块，每次选取一个块作为变量block，用于后续处理；**
 3. **对block做减去128的预处理；**
 4. **对block进行DCT变换；**
-5. **对DCT系数进行zigzag扫描后，结果写入对应的结果矩阵中。**	
+	. **对DCT系数进行zigzag扫描后，结果写入对应的结果矩阵中。**	
 
 
 
@@ -435,4 +435,309 @@ for i = 1:r/8
 end
 
 ```
+
+
+
+### 9）
+
+	为了实现JPEG编码，首先定义两个函数DC_coeff（）与AC_coeff（），分别用于求出每个块的DC码与AC码；
+
+函数代码如下：
+
+```matlab
+function DC_code = DC_coeff(DC_vector)
+%输入直流分量的向量DC_vector
+%输出DC为其对应的二进制码流
+
+D = zeros(length(DC_vector),1);
+D(2:length(DC_vector)) = -diff(DC_vector);
+D(1) = DC_vector(1);
+%差分编码
+
+DC_code = '';
+load('JpegCoeff.mat');
+for i = 1:length(D)
+    DC_code = strcat(DC_code,DC_translate(D(i),DCTAB));
+    
+end
+end
+```
+
+	其中调用到自定义的子函数DC_translate（），用于将预测误差通过已知的DCTAB表进行翻译。其代码如下：
+
+```matlab
+function y = DC_translate(c,DCTAB)
+%y为DC系数翻译的二进制字符串
+%c为预测误差
+%DCTAB即为对应的码表
+    y = '';
+    cor = 0;    %cor为Category
+    if(c~=0)
+        cor = floor(log2(abs(c)))+1;
+    end
+    s_length = DCTAB(cor+1,1);
+    
+    for i = 1:s_length
+        y = strcat(y,DCTAB(cor+1,1+i)+'0');
+    end
+    %查表，Huffman编码
+    
+    s = dec2bin(abs(c));
+    if(c<0)
+        for i = 1:length(s)
+            if(s(i)=='1')
+                s(i)='0';
+            elseif(s(i)=='0')
+                s(i)='1';
+            end
+        end
+    end
+    %预测误差的二进制码       
+    y = strcat(y,s);
+end
+```
+
+	随后用课件中的例子进行简单验证，大致没有问题。
+
+![DC](D:\github\Matlab_pictureprocess\pic\DC.JPG)
+
+
+
+	AC_coeff()函数同理，代码以及验证（同课件上的例子）如下:
+
+```matlab
+function y = AC_coeff(AC_vector)
+%输入AC_vector为经过量化的待处理的AC系数
+%输出y为对应的二进制码流
+
+load('JpegCoeff.mat');
+run = 0;
+y = '';
+ZRL = '11111111001';    %16连0
+EOB = '1010';           %块结束符
+
+for i = 1:length(AC_vector)
+    if(AC_vector(i)==0)
+       run = run+1;
+    else
+        if(run < 16)
+            y = strcat(y,AC_translate(run,AC_vector(i),ACTAB));  %添加该非0系数的二进制码
+            run = 0;
+        else
+            while(run>=16)
+                y = strcat(y,ZRL);
+                run = run-16;
+            end
+            y = strcat(y,AC_translate(run,AC_vector(i),ACTAB)); 
+        end
+    end
+end
+y = strcat(y,EOB);  %在结尾增加EOB
+
+end
+
+function y = AC_translate(run,c,ACTAB)
+%该函数为子函数
+%run为游程数
+%c为非零AC系数
+%ACTAB为Huffman对照表
+%返回值y对应AC系数二进制码
+
+size = 0;
+if(c ~= 0)
+    size = floor(log2(abs(c)))+1;
+end
+%确定该系数的size
+
+amplitude = dec2bin(abs(c));
+if(c<0)
+    for i = 1:length(amplitude)
+        if(c(i)=='0')
+            c(i)='1';
+        elseif(c(i)=='1')
+            c(i)='0';
+        end
+    end
+end
+%确定amplitude
+
+huffman = '';
+row = run*10 + size;
+l = ACTAB(row,3);
+for i = 1:l
+    huffman = strcat(huffman,ACTAB(row,3+i)+'0');
+end
+%确定run/size的huffman编码
+
+y = strcat(huffman,amplitude)
+%返回值
+end
+```
+
+![AC](D:\github\Matlab_pictureprocess\pic\AC.JPG)
+
+
+
+	随后需要对整幅图像进行jpeg编码，由于在之前的题目中已经得到了DCT系数的结果矩阵result，该矩阵的第一行即为DC系数，该矩阵每列第二道末尾为AC系数。故只需进行循环即可得到DC与AC的二进制码。于是在结构上采用上一题的程序，增加以下语句完成整幅图像的编码：
+
+```matlab
+DC = result(1,:);           %第一行即为DC系数
+H = r;                      %高
+W = c;                      %图像宽度
+DC_code = DC_coeff(DC);     %DC码
+AC_code = '';               %AC码
+for i = 1:r*c/64            %逐块翻译AC码
+    AC_code = strcat(AC_code,AC_coeff(result(2:end,i)));
+end
+%将结果写入结构体中
+jpegcodes = struct('DC_code',{DC_code},'AC_code',AC_code,'H',H,'W',W);
+
+save 'jpegcodes.mat' jpegcodes
+
+```
+
+	结果通过一个结构体**jpegcodes**存入**jpegcodes.mat**中。
+
+
+
+### 10）
+
+	在灰度图中，一个像素占一字节，由测试图像的长宽可计算出图像文件大小为20160B。
+
+	DC码流与AC码流均为二进制码，其长度即为其bit数。
+
+	代码如下：
+
+```matlab
+[r,c] = size(hall_gray);
+pic_size = r*c;             %计算原始图像字节数
+code_length = length(jpegcodes.DC_code)+length(jpegcodes.AC_code);%计算码流长度
+ratio = pic_size * 8 / code_length    %字节数乘8后除于码流长度即为压缩比
+```
+
+	结果如下：
+
+![ratio](D:\github\Matlab_pictureprocess\pic\ratio.JPG)
+
+	若考虑上写入文件中的图像长度、宽度数据，每个数据假设为int8型，则相当于码流长度再加上16bits，计算出的压缩比为6.4107。由此可见，JPEG编码方式可以节省许多内存空间。
+
+
+
+### 11）
+
+	对生成的压缩信息做解压，主要分为以下几个步骤：
+
+1. **对DC、AC码进行熵解码**，虽然MATLAB自带Huffman编码，但是由于DC、AC码流中除了Huffman码外还有二进制数，故不能直接将码进行处理；若想采用逐个输入解码的话，MATLAB会报错，综上考虑，决定自己根据已有的编码表构造出Huffman二叉树，从而进行解码的工作。每个Huffman码解码后再将二进制数还原，最终将（8）问中的result矩阵还原出来。构建Huffman树的工作写于函数文件build_huffmantree.m中，关键代码如下：
+
+   ```matlab
+   for i = 1:r         %共有r个编码
+       row = encode_table(i,:);
+       value_number = row(1);              %值的个数
+       code_number = row(2+value_number);  %编码长度
+       index = 1;                          
+       code = row(3+value_number:3+value_number+code_number-1); %获取code
+       
+       for k = 1:length(code)      %对tree进行构造
+           if(code(k)==0)
+               if(tree(index).left~=0)         %若存在left节点
+                   index = tree(index).left;   %读取下一个节点index
+               else                          
+                   tree(length(tree)+1) =  struct('left',0,'right',0,'value',-1);     %创建新节点
+                   tree(index).left = length(tree);              %对left进行赋值
+                   index = length(tree);
+                   %disp(strcat('create a new node, index:',num2str(index)));
+               end
+           elseif(code(k)==1)
+               if(tree(index).right~=0)        %若存在right节点
+                   index = tree(index).right;   %读取下一个节点index
+               else                          
+                   tree(length(tree)+1) =  struct('left',0,'right',0,'value',-1);      %创建新节点
+                   tree(index).right = length(tree);  %创建新节点
+                   index = length(tree);
+               end
+           else
+               error('code should not contain numbers otherwise 1,0');
+           end
+       end
+       tree(index).value = row(2:value_number+1);      %定义节点的value即为解码结果
+   end
+   ```
+
+   	由以上代码即可构造出一课Huffman编码树，每个叶子节点的value值对应于该Huffman码的数值。故而每次从根节点开始遍历，直达节点到达叶子节点，即可找到这段码对应的数值。
+
+   	随后对整段DC码流进行解码，每次解码完后，根据Category解出后面几位二进制码代表的预测误差，随后继续循环Huffman解码。如此便可解出DC码流。
+
+   ```matlab
+   index = 1;          
+   tree_index = 1;     %用于指示树中节点位置
+   find_end = 0;       %用于指示是否完成一段的解码
+   while(index < length(DC_code))
+       if(DC_code(index)==0)
+           tree_index = tree(tree_index).left;
+           if(tree(tree_index).value~=-1)
+               find_end = 1;       %该段解码完成
+           end
+       elseif(DC_code(index)==1)
+           tree_index = tree(tree_index).right;
+           if(tree(tree_index).value~=-1)
+               find_end = 1;
+           end
+       else
+           error('DC_code error!');
+       end
+       index = index + 1;
+       %找到结尾的处理
+       if(find_end)
+           category = tree(tree_index).value;
+           tree_index = 1;             %重回根节点
+           find_end = 0;               %更新
+           number = 0;                 %number为预测误差二进制码
+           if(category~=0)
+               number = DC_code(index:index+category-1);
+               index = index + category;
+           else
+               index = index + 1;      %更新index
+           end
+           
+           pre_error = 0;              %预测误差
+           is_neg = 0;                 %是否为负数
+      
+           if(number(1)==0 & category~=0)  %说明该预测误差为负数
+               number = double(~number);   %按位取反
+               is_neg = 1;
+           end
+           
+           for i = 1:length(number)
+               number(i) = number(i)*(2^(length(number)-i));
+               %各位乘对应的系数
+           end
+   
+           pre_error = sum(number);
+           if(is_neg)
+               pre_error = -pre_error;
+           end
+           %得到预测误差
+           y(length(y)+1) = pre_error;
+           %添加新元素
+       end
+   end
+   
+   %最后反差分编码
+   y(2:end) = -y(2:end);
+   for i = 2:length(y)
+       y(i) = y(i)+y(i-1);
+   end
+   
+   ```
+
+   	对于AC码同理，不再赘述。综上得到原有的result矩阵。
+
+2. **对该result矩阵的每列进行反zigzag还原**，还原成8*8矩阵。
+
+3. **随后对每块矩阵进行反量化**，随后进行DCT逆变换；
+
+4. **将各块进行拼接**；
+
+
+
 
