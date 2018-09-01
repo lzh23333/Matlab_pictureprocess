@@ -25,7 +25,7 @@ saveas(gca,'temp1.png');
 
 	效果如图：
 
-![temp1](D:\github\Matlab_pictureprocess\temp1.png)
+![temp1](D:\github\Matlab_pictureprocess\pic\temp1.png)
 
 	将图片涂成黑白棋盘形状，可以通过将图片分块，根据不同块的坐标决定是否进行涂黑操作。代码与效果如下：
 
@@ -52,7 +52,7 @@ end
 imwrite(temp2,'黑白.png','PNG');%写入文件
 ```
 
-![黑白](D:\github\Matlab_pictureprocess\黑白.png)
+![黑白](D:\github\Matlab_pictureprocess\pic\黑白.png)
 
 
 
@@ -150,7 +150,7 @@ all(p)
 
 	结果显示C与C2相等，得证。
 
-![ex2_1_result](D:\github\Matlab_pictureprocess\ex2_1_result.JPG)
+![ex2_1_result](D:\github\Matlab_pictureprocess\pic\ex2_1_result.JPG)
 
 
 
@@ -193,7 +193,7 @@ D = D*sqrt(2/N);
 
 	随意构造一个随机矩阵A，计算my_dct2与dct2的结果，可以发现结果一致；
 
-![ex2_2](D:\github\Matlab_pictureprocess\ex2_2.JPG)
+![ex2_2](D:\github\Matlab_pictureprocess\pic\ex2_2.JPG)
 
 
 
@@ -201,7 +201,7 @@ D = D*sqrt(2/N);
 
 	选取hall_gray的120列、120行作为测试图像，做DCT变换后得到系数矩阵C。将C的右4列、左4列分别置为0，随后做逆变换，显示图像结果如下：
 
-![ex2_3](D:\github\Matlab_pictureprocess\ex2_3.png)
+![ex2_3](D:\github\Matlab_pictureprocess\pic\ex2_3.png)
 
 	可以看出，将DCT系数矩阵右4列变为0后，图像没有明显变换，但是将左4列变为0，图像明显变黑。从中可以看出人眼对于低频分量的变化较为敏感。且将左4列变为0，相当于去掉了直流分量及低频分量，整体图像变暗。当然，N越大，则右边4列变为0的影响越小。
 	
@@ -266,7 +266,7 @@ A3 = D'*C3*D + 128;
 
 ```
 
-![ex2_4](D:\github\Matlab_pictureprocess\ex2_4.png)
+![ex2_4](D:\github\Matlab_pictureprocess\pic\ex2_4.png)
 
 	可以看出，旋转后逆变换的图像，除了旋转，相较于原图变化很大，但还是可以大致看出大礼堂的形状。
 
@@ -294,7 +294,7 @@ freqz(b,a,2001);
 
 	图像如下：
 
-![freq](D:\github\Matlab_pictureprocess\freq.png)
+![freq](D:\github\Matlab_pictureprocess\pic\freq.png)
 
 	由此可见，差分编码系统为高通滤波器。DC系数先进行差分编码，说明高频率分量更多。
 
@@ -390,7 +390,7 @@ end
 
 	通过验证可知程序正确性：
 
-![zigzag](D:\github\Matlab_pictureprocess\zigzag.JPG)
+![zigzag](D:\github\Matlab_pictureprocess\pic\zigzag.JPG)
 
 
 
@@ -906,11 +906,11 @@ recover_msg = char(recover_msg)         %转为字符串
 > 同空域方法，用信息为逐一替换掉每个量化后的DCT系数的最低位，在进行熵编码
 
 	要将每一位DCT系数都进行替换，但是要隐藏的信息可能没有那么长，在此不妨做如下规定：对于要隐藏的文本信息，最后面全部补为0，从而使得信息长度与图像DCT系数（像素个数）一致，从而对每个DCT系数都作出修改。
-
+	
 	但是还有一个问题需要考虑，DCT系数不同于像素，其值存在负值。考虑到负数的二进制2补码表示中，最低位为1时为奇数。故而可以采用判定其是否为奇数来推断最低位。
-
+	
 	综上所述，将以上功能封装成函数msg_hide()与msg_take()，详细定义参见该两个函数文件。其中该两个函数均有参数method代表采用的是第几种DCT域信息隐藏方法。同时为了方便地得到图片的全部块的DCT系数矩阵，自定义函数DCT_result()；
-
+	
 	关键代码如下：
 
 ```matlab
@@ -926,7 +926,7 @@ result = reshape(result,r,c);
 ```
 
 	随后对得到的result矩阵进行熵编码，代码与之前一致，在此略去。
-
+	
 	图像质量与压缩比评价如下：
 
 ![msg_hide1](D:\github\Matlab_pictureprocess\pic\msg_hide1.JPG)
@@ -940,7 +940,7 @@ result = reshape(result,r,c);
 > 同方法1，用信息位逐一替换掉每个量化后的DCT系数的最低位，在进行熵解码。注意不是每个DCT系数都嵌入了信息。
 
 	此种方法减少了对DCT系数的修改。要实现只对部分DCT系数做修改，且能提取信息，需要做一些规定。在此处我进行的规定是当读取到停止位（即8个0）时，说明信息已经提取完毕。当然也可以采取在开头写入信息的长度之类的方式。做此修改后即可实现方法2。
-
+	
 	关键代码如下：
 
 ```matlab
@@ -957,7 +957,7 @@ result = reshape(result,r,c);
 ```
 
 	图像质量与压缩比评价如下：![msg_hide2](D:\github\Matlab_pictureprocess\pic\msg_hide2.JPG)
-
+	
 	可以看出，图像质量较于第一种方法有了明显的上升。但是由于此时要隐藏的信息大小较小，如果信息量很大的话，那就需要修改更多的DCT系数甚至修改全部的DCT系数，此时与第一种方法无异。故此种算法会使得图像质量随着信息量增大而变差。在信息量较小时的确不失为一种好方法。
 
 
@@ -999,7 +999,7 @@ result(:,i)=column;
 ![msg_hide3](D:\github\Matlab_pictureprocess\pic\msg_hide3.JPG)
 
 	可以看出此种方法对图像质量的影响较小，但是与第二种方法相比较并没有明显优势，甚至稍微劣势于第二种方法。且能隐藏的信息量取决于图像块的数量，与前两种方法相比，差距还是较大的。
-
+	
 	但是我们不妨将得到的图片展示出来，从主观上判断：
 
 ![msg_hide_res](D:\github\Matlab_pictureprocess\pic\msg_hide_res.png)
