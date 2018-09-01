@@ -1,6 +1,11 @@
 function y = AC_coeff(AC_vector)
 %输入AC_vector为经过量化的待处理的AC系数
 %输出y为对应的二进制码流
+%只对第一列进行处理
+[r,c]=size(AC_vector);
+if(c~=1)
+    sprintf('AC_vector shoule be a column vector, otherwise you will only get one column result;')
+end
 
 load('JpegCoeff.mat');
 run = 0;
@@ -21,6 +26,7 @@ for i = 1:length(AC_vector)
                 run = run-16;
             end
             y = strcat(y,AC_translate(run,AC_vector(i),ACTAB)); 
+            run = 0;                    %清零
         end
     end
 end

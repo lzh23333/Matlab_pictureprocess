@@ -61,7 +61,7 @@ imwrite(temp2,'黑白.png','PNG');%写入文件
 ### 1）
 
 	可以在变换域执行。由于对每个像素点减128，相当于减去一个直流分量，也就相当于零频点强度减128*x（x未定）。
-
+	
 	从数学上验证，设A为N*N的待处理矩阵，D为DCT算子，O为全1矩阵，则减去128后得到的C为：
 $$
 C=D(A-128O)D^T\\
@@ -124,7 +124,7 @@ N & 0 &  \cdots & 0\\
 \right]
 $$
 	从而，即将C~0,0~减去128*N即可；
-
+	
 	代码验证如下：
 
 ```matlab
@@ -204,7 +204,7 @@ D = D*sqrt(2/N);
 ![ex2_3](D:\github\Matlab_pictureprocess\ex2_3.png)
 
 	可以看出，将DCT系数矩阵右4列变为0后，图像没有明显变换，但是将左4列变为0，图像明显变黑。从中可以看出人眼对于低频分量的变化较为敏感。且将左4列变为0，相当于去掉了直流分量及低频分量，整体图像变暗。当然，N越大，则右边4列变为0的影响越小。
-
+	
 	代码如下：
 
 ```matlab
@@ -244,7 +244,7 @@ $$
 A'=D^T*C^T*D=D^T*(D*A^T*D^T)*D=A^T
 $$
 	对DCT矩阵旋转90度，180度，猜测逆变换后图像也有旋转，但不好从数学上说明；
-
+	
 	效果图、代码如下：
 
 ```matlab
@@ -322,11 +322,11 @@ $$
 ### 7)
 
 	要实现zig_zag，有以下两种思路：
-
+	
 	1.**打表法**，通过写出zigzag扫描得到的列向量对应的8*8矩阵转为的列向量中的下标，即可方便地进行zigzag扫描。然而该方法只适用于固定大小矩阵。
-
+	
 	2.**扫描法**：通过程序直接模拟zigzag扫描，从而可以进行任意大小矩阵的zigzag扫描。具体方法为，定义一个方向指示变量dir，每次循环都会为列向量y添加元素。定义i，j代表矩阵元素下标，每次判断该位置元素是否为边界终止点，从而确定下一次扫描的点的下标所在。	
-
+	
 	综上，定义了zigzag()函数来进行zigzag扫描，扫描方法作为参数传入，详见zigzag.m文件；
 
 ```
@@ -603,9 +603,9 @@ save 'jpegcodes.mat' jpegcodes
 ### 10）
 
 	在灰度图中，一个像素占一字节，由测试图像的长宽可计算出图像文件大小为20160B。
-
+	
 	DC码流与AC码流均为二进制码，其长度即为其bit数。
-
+	
 	代码如下：
 
 ```matlab
@@ -664,7 +664,7 @@ ratio = pic_size * 8 / code_length    %字节数乘8后除于码流长度即为�
    ```
 
    	由以上代码即可构造出一课Huffman编码树，每个叶子节点的value值对应于该Huffman码的数值。故而每次从根节点开始遍历，直达节点到达叶子节点，即可找到这段码对应的数值。
-
+   	
    	随后对整段DC码流进行解码，每次解码完后，根据Category解出后面几位二进制码代表的预测误差，随后继续循环Huffman解码。如此便可解出DC码流。
 
    ```matlab
@@ -730,14 +730,291 @@ ratio = pic_size * 8 / code_length    %字节数乘8后除于码流长度即为�
    
    ```
 
-   	对于AC码同理，不再赘述。综上得到原有的result矩阵。
+   	对于AC码同理，不再赘述。但是在AC码的还原中出现了许多bug，由此发现前面进行AC码编码函数就存在着些许bug，经过修改后整个部分终于得以成功运转。综上得到原有的result矩阵。将该result矩阵存在ex2_11_result.mat下，通过与第8问中的result矩阵进行对比发现，这两个矩阵相等。即解码正确。
+
+   ![result_equal](D:\github\Matlab_pictureprocess\pic\result_equal.JPG)
 
 2. **对该result矩阵的每列进行反zigzag还原**，还原成8*8矩阵。
 
+   	为了简单起见，采用打表法，由于之前已经存在下标对照表，只需将赋值的顺序发过来即可，关键代码如下：
+
+   ```matlab
+   index = [1,9,2,3,10,17,25,18,11,4,5,12,19,26,33,41,...
+           34,27,20,13,6,7,14,21,28,35,42,49,57,50,43,36,...
+           29,22,15,8,16,23,30,37,44,51,58,59,52,45,38,31,24,32,39,46,53,...
+           60,61,54,47,40,48,55,62,63,56,64];  %zigzag的对应索引
+   y = zeros(64,1);
+   for i = 1:64
+       y(index(i)) = s(i);			%反过来对应
+   end
+   y = reshape(y,8,8);             %变为矩阵
+   ```
+
 3. **随后对每块矩阵进行反量化**，随后进行DCT逆变换；
+
+   	代码如下：
+
+   ```matlab
+   column = result2(:,i);          %取一列
+   block = anti_zigzag(column);%还原图像块
+   block = block.*QTAB;        %反量化
+   pic_block = idct2(block);   %逆DCT2
+   ```
 
 4. **将各块进行拼接**；
 
+   ```matlab
+   r_index = ceil(i/c);
+   c_index = mod(i,c);
+   if(c_index == 0)
+       c_index = c;
+   end
+   %确定图像块所处的位置
+   pic(8*r_index-7:8*r_index,8*c_index-7:8*c_index) = pic_block;
+   %拼接
+   ```
 
 
+
+	综上，将各步骤合成为单个函数picture_recover()，从而可以方便地调用函数进行解码。解码结果以及PSNR计算结果如下：
+
+![解码结果](D:\github\Matlab_pictureprocess\pic\解码结果.png)
+
+	PSNR = 34.8975，可以看出在30——40dB间，查询维基百科可知，一般的图像压缩PSNR值就在30——40dB间，可以看出压缩效果较好。
+	
+	从主观上来看，这两幅图看不出明显差别，但是解压后的图像显得更加顺畅平缓（图中大礼堂门口的柱子处）由此可见，Jpeg的确是一种优秀的图像压缩方式。
+
+
+
+### 12）
+
+> 	将量化步长减小为原来的一半，重做编解码。同标准量化步长的情况比较压缩比与图像质量。
+
+	此步只需将JpegCoeff.mat中的QTAB矩阵改为原来的一半后计算压缩比与PSNR即可。故在每步使用到QTAB时将QTAB减半即可。
+	
+	更改后结果如下：
+
+<img src = "D:\github\Matlab_pictureprocess\pic\更改后QTAB.JPG" width = "100" height = "100" alt = "更改QTAB后的结果" />
+
+![psnr](D:\github\Matlab_pictureprocess\pic\psnr.JPG)
+
+![解码结果2](D:\github\Matlab_pictureprocess\pic\解码结果2.png)
+
+| QTAB | 压缩比 | PSNR    | 主观感受       |
+| ---- | ------ | ------- | -------------- |
+| 原版 | 6.4188 | 34.8975 | 看不出明显变化 |
+| 一半 | 4.4081 | 37.3897 | 看不出明显变化 |
+
+	由此可见，将QTAB减半后，压缩比减小到4.4，PSNR则有所增大。但是由于本来的图像质量就较好，故而外面倾向于选择压缩比更大的量化矩阵。
+
+
+
+### 13）
+
+> 看电视时偶尔可以看到美丽的雪花图像（见snow.mat），请对其进行编码，和测试图像压缩比与图像质量进行比较，并解释比较结果。
+
+	将图像压缩的过程组合成函数JPEG_encoder，输出结构体jpegcodes，压缩比、PSNR以及解压图像结果如下：
+
+![snow](D:\github\Matlab_pictureprocess\pic\snow.JPG)
+
+![snow](D:\github\Matlab_pictureprocess\pic\snow.png)
+
+	可以看出，与之前的测试图像结果进行对比，压缩比减小了许多，同时，PSNR也下降了许多，说明对于这种雪花图像的压缩效果并不好。原因在于雪花图像是随机图像，与我们日常看到的图像存在不同，图像上并不连续，而jpeg是根据人眼对连续亮度的东西较为敏感而设计的，故而压缩效果很差。
+
+
+
+
+
+## 3、信息隐藏
+
+### 1）
+
+> 实现本章介绍的空域隐藏方法和提取方法。验证其抗JPEG编码能力
+
+	首先，需要得到待隐藏信息。在这里为了简单起见，将字符串设置为待隐藏信息，并且转化为其对应的ascii码（二进制），从而得到一个二进制的数组，数组结尾带8个0，代表到达字符结尾。待隐藏信息存于'msg.mat'中。
+
+```matlab
+%generate message
+message = 'Tsinghua University';
+bin_msg = [];
+for i = 1:length(message)
+    msg = binstr2array(dec2bin(abs(message(i))))';  %转为二进制数组
+    msg = [zeros(1,8-length(msg)),msg];             %每个字符对应8位
+    bin_msg(end+1:end+8) = msg;                     
+end
+bin_msg(end+1:end+8)=zeros(1,8);
+save msg.mat bin_msg
+```
+
+	要实现空域隐藏方法，只需将图像每个像素中最低位换为信息即可。由于每个像素最低位代表其是否为奇数，故只需对待接收信息的像素先减去最低位，再加上信息大小即可。相关代码如下：
+
+```matlab
+[r,c] = size(hall_gray);
+hall = double(hall_gray(:));    %将信息载体先转为列向量
+l = length(bin_msg);
+if(r*c < length(bin_msg))       %防止信息长度大于载体
+    l = r*c;
+end
+
+a = mod(hall(1:l),2);
+hall(1:l) = hall(1:l)-a;        %将前l位最低位全部变为0
+hall(1:l) = hall(1:l)+bin_msg(1:l)'; %将信息写入最低位
+
+hall2 = reshape(hall,r,c);      %reshape成原来的图像
+```
+
+![信息隐藏_空域](D:\github\Matlab_pictureprocess\pic\信息隐藏_空域.png)
+
+	由上图可见，修改最低位对于图像基本没有影响。完全无法看出图片中隐藏着信息。若要对该图进行信息提取，只需将该图每个像素的最低位提取出来，随后根据之前的约定，当某一位为全0时，即找到了结尾位，由此可以得到每个字符的信息，从而还原出字符串。
+
+```matlab
+%信息提取
+code = mod(hall2(:),2);                 %取最低位
+recover_msg = [];%字符数组
+for i = 1:floor(length(code)/8)
+    zifu = code(8*i-7:8*i);             %取连续8位
+    zifu = zifu.* (2.^(7:-1:0)');       %乘对应的幂
+    if(sum(zifu)~=0)
+        recover_msg(end+1) = sum(zifu);
+    else
+        break;                          %说明到达结尾
+    end
+end
+recover_msg = char(recover_msg)         %转为字符串
+```
+
+	结果如图，可见还原成功。
+
+![空域还原](D:\github\Matlab_pictureprocess\pic\空域还原.JPG)
+
+
+
+	随后对隐藏信息的图像进行JPEG编码以及解码，对解码后的图像进行提取信息操作，结果如下：
+
+![提取2](D:\github\Matlab_pictureprocess\pic\提取2.JPG)
+
+	由于JPEG编码为有损编码，故提取信息为乱码。可见空域信息隐藏非常不抗JPEG编码。
+
+
+
+### 2）
+
+> 依次实现本章介绍的三种变换域信息隐藏方法与提取方法，分析嵌密方法的隐蔽性以及嵌密后图像的质量变化和压缩比变化
+
+#### a.
+
+> 同空域方法，用信息为逐一替换掉每个量化后的DCT系数的最低位，在进行熵编码
+
+	要将每一位DCT系数都进行替换，但是要隐藏的信息可能没有那么长，在此不妨做如下规定：对于要隐藏的文本信息，最后面全部补为0，从而使得信息长度与图像DCT系数（像素个数）一致，从而对每个DCT系数都作出修改。
+
+	但是还有一个问题需要考虑，DCT系数不同于像素，其值存在负值。考虑到负数的二进制2补码表示中，最低位为1时为奇数。故而可以采用判定其是否为奇数来推断最低位。
+
+	综上所述，将以上功能封装成函数msg_hide()与msg_take()，详细定义参见该两个函数文件。其中该两个函数均有参数method代表采用的是第几种DCT域信息隐藏方法。同时为了方便地得到图片的全部块的DCT系数矩阵，自定义函数DCT_result()；
+
+	关键代码如下：
+
+```matlab
+result = result(:);         %result变为列向量
+result = result - mod(result,2);    %使每个DCT系数的最后一位都为0
+if(length(msg_array) < length(result))
+     msg_array(end+1:end+length(result)-length(msg_array))=0; 
+     %使msg_array与result等长
+end
+result = result + msg_array(1:length(result));  
+%修改每一位DCT系数的最低位
+result = reshape(result,r,c);
+```
+
+	随后对得到的result矩阵进行熵编码，代码与之前一致，在此略去。
+
+	图像质量与压缩比评价如下：
+
+![msg_hide1](D:\github\Matlab_pictureprocess\pic\msg_hide1.JPG)
+
+	可以看出加密后压缩比变小，且相比于正常图片JPEG编码后的结果，加密后图像质量下降较多。
+
+
+
+#### b.
+
+> 同方法1，用信息位逐一替换掉每个量化后的DCT系数的最低位，在进行熵解码。注意不是每个DCT系数都嵌入了信息。
+
+	此种方法减少了对DCT系数的修改。要实现只对部分DCT系数做修改，且能提取信息，需要做一些规定。在此处我进行的规定是当读取到停止位（即8个0）时，说明信息已经提取完毕。当然也可以采取在开头写入信息的长度之类的方式。做此修改后即可实现方法2。
+
+	关键代码如下：
+
+```matlab
+result = result(:);         %result变为列向量
+l = length(msg_array);
+if(l > length(result))
+    l = length(result);
+end
+        
+result(1:l) = result(1:l) - mod(result(1:l),2);   
+%使每个DCT系数的最后一位都为0
+result(1:l) = msg_array(1:l)+result(1:l);   %修改部分
+result = reshape(result,r,c);
+```
+
+	图像质量与压缩比评价如下：![msg_hide2](D:\github\Matlab_pictureprocess\pic\msg_hide2.JPG)
+
+	可以看出，图像质量较于第一种方法有了明显的上升。但是由于此时要隐藏的信息大小较小，如果信息量很大的话，那就需要修改更多的DCT系数甚至修改全部的DCT系数，此时与第一种方法无异。故此种算法会使得图像质量随着信息量增大而变差。在信息量较小时的确不失为一种好方法。
+
+
+
+#### c.
+
+> 先将待隐藏信息用1,-1的序列表示，再逐一将信息为追加在每个快zigzag顺序的最后一个非零DCT系数之后，若原本该图像块的最后一个系数就不为零，那就用信息为替换该系数。
+
+	用此方法只能实现一个块隐藏1bit信息，相对之前的方法来说可隐藏信息量大幅减少。实现上较为简单，关键代码如下：
+
+```matlab
+l = size(result,2);     %图像的块数
+if(l > length(msg_array))
+    l = length(msg_array);
+end
+for i = 1:l
+	column = result(:,i);
+    index = length(column); %最后一个非0系数的下标
+    find = 0;
+  	while(~find)
+    if(column(index)~=0)
+    	find=1;
+  	else
+        index = index-1;
+    end
+end
+%由此找到最后一个非零系数index
+if(index==length(column))
+	column(index) = msg_array(i);
+else
+    column(index+1)=msg_array(i);
+end
+%将信息写入
+result(:,i)=column;        
+```
+
+	图像质量与压缩比信息如下：
+
+![msg_hide3](D:\github\Matlab_pictureprocess\pic\msg_hide3.JPG)
+
+	可以看出此种方法对图像质量的影响较小，但是与第二种方法相比较并没有明显优势，甚至稍微劣势于第二种方法。且能隐藏的信息量取决于图像块的数量，与前两种方法相比，差距还是较大的。
+
+	但是我们不妨将得到的图片展示出来，从主观上判断：
+
+![msg_hide_res](D:\github\Matlab_pictureprocess\pic\msg_hide_res.png)
+
+	从图像上来看，前两种方法获得的图像的左上角都有很明显的噪声块，且第一种方法导致的图像失真较明显。而第三种方法从肉眼上看并没有明显的噪声块存在。由此可以判定，方法3的隐蔽性远远高于前两种方法。原因在于方法3只是选取高频的DCT系数进行改变，而人眼对于高频分量并不敏感，所以并不能看出明显的差别。而前两种方法对于低频DCT系数都存在修改，故而较为容易发现其隐藏了信息。综上列出如下评价表：
+
+| method | 压缩比                   | 图像质量                 | 隐蔽性 |
+| ------ | ------------------------ | ------------------------ | ------ |
+| 1      | 变小                     | 变差                     | 差     |
+| 2      | 稍微变小（信息量较少时） | 稍微变差（信息量较小时） | 差     |
+| 3      | 稍微变小                 | 稍微变差                 | 良好   |
+
+
+
+### 3）
+
+> （选做）请设计实现新的隐藏算法并分析其优缺点。
 
