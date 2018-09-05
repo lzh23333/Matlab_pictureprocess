@@ -7,7 +7,7 @@ function pic = picture_recover(DC_code,AC_code,H,W)
 
 load('JpegCoeff.mat');
 result2 = result_recover(DC_code,AC_code,H,W);
-save('ex2_11_result.mat','result2');
+%save('ex2_11_result.mat','result2');
 
 r = ceil(H/8);
 c = ceil(W/8);

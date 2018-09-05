@@ -7,4 +7,4 @@ for i = 1:length(message)
     bin_msg(end+1:end+8) = msg;                     
 end
 bin_msg(end+1:end+8)=zeros(1,8);
-save msg.mat bin_msg
+%save msg.mat bin_msg
